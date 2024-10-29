@@ -40,8 +40,8 @@ def submit():
         username = request.form['username']
         first_name = request.form['first_name']
         last_name = request.form['last_name']
-        gender = request.form['gender']
         birthdate = request.form['birthdate']
+        gender = request.form['gender']
         email = request.form['email']
         password = request.form['password']
         otp = generate_otp()
@@ -50,8 +50,8 @@ def submit():
             'username': username,
             'first_name': first_name,
             'last_name': last_name,
-            'gender': gender,
             'birthdate': birthdate,
+            'gender': gender,
             'email': email,
             'password': password,
             'otp': otp
@@ -66,8 +66,8 @@ def verify():
         user_data = session.get('user_data')
         if user_data and user_data['otp'] == entered_otp:
             cursor = db.cursor()
-            sql = "INSERT INTO users (username, first_name, last_name, gender, birthdate, email, password) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-            val = (user_data['username'], user_data['first_name'], user_data['last_name'], user_data['gender'], user_data['birthdate'], user_data['email'], user_data['password'])
+            sql = "INSERT INTO users (username, first_name, last_name, birthdate, gender, email, password) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            val = (user_data['username'], user_data['first_name'], user_data['last_name'], user_data['birthdate'], user_data['gender'], user_data['email'], user_data['password'])
             cursor.execute(sql, val)
             db.commit()
             session.pop('user_data', None)
@@ -86,9 +86,9 @@ def login():
         if user:
             session['username'] = username
             session['first_name'] = user[1]  # Assuming 1st index is first_name
-            session['last_name'] = user[2]   # Assuming 2nd index is last_name   
-            session['gender'] = user[3]        # Assuming 3rd index is birthdate
-            session['birthdate'] = user[4]    # Assuming 4th index is gender
+            session['last_name'] = user[2]   # Assuming 2nd index is last_name
+            session['gender'] = user[3]       # Assuming 4th index is gender
+            session['birthdate'] = user[4]   # Assuming 3rd index is birthdate
             session['email'] = user[5]       # Assuming 5th index is email
             return render_template('homescreen.html',username=username)
         else:
@@ -171,18 +171,32 @@ def archive_form():
         redirect(url_for('login_page'))
     return render_template('archive.html')
 
-@app.route('/retrieve', methods=['GET'])
+@app.route('/retrieve', methods=['GET', 'POST'])
 def retrieve_data():
     if 'username' not in session:
         return redirect(url_for('login_page'))
-
-    r_username = session['username']
-    cursor = db.cursor()
-    sql = "SELECT app_name, a_username, a_password FROM accounts WHERE r_username = %s"
-    cursor.execute(sql, (r_username,))
-    data = cursor.fetchall()
     
-    return render_template('retrieve.html', data=data)
+    if request.method == 'POST':
+        entered_otp = request.form['otp']
+        user_data = session.get('user_data')
+        if user_data and user_data['otp'] == entered_otp:
+            r_username = session['username']
+            cursor = db.cursor()
+            sql = "SELECT app_name, a_username, a_password FROM accounts WHERE r_username = %s"
+            cursor.execute(sql, (r_username,))
+            data = cursor.fetchall()
+            return render_template('retrieve.html', data=data, message='OTP Verified successfully Welcome')
+        else:
+            return "Invalid OTP. Please try again."
+
+    # For GET request, generate and send OTP
+    user_email = session.get('email')
+    otp = generate_otp()
+    send_otp(user_email, otp)
+    session['user_data'] = {'otp': otp}
+    return render_template('retrieve-verify.html')
+    
+
 
 @app.route('/delete', methods=['POST', 'GET'])
 def delete_data():
@@ -203,7 +217,6 @@ def delete_data():
         return render_template('archive.html', message='Data deleted successfully')
 
     return render_template('delete.html')
-
 
 @app.route('/setting')
 def setting_page():
